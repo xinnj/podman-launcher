@@ -2,9 +2,9 @@
 
 all: clean download-amd64 podman-launcher-amd64 download-arm64 podman-launcher-arm64
 
-CRUN_VERSION="1.14.4"
-PODMAN_VERSION="4.9.3"
-PODMAN_LAUNCHER_VERSION="0.0.5"
+CRUN_VERSION="1.20"
+PODMAN_VERSION="5.4.0"
+PODMAN_LAUNCHER_VERSION="1.0.0"
 
 clean:
 	@rm -f podman-launcher-*

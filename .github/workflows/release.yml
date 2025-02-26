@@ -1,0 +1,29 @@
+name: Release
+
+on:
+  release:
+    types: [ published ]
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Build
+      run: |
+        sed -i -E "s/^PODMAN_LAUNCHER_VERSION=*/PODMAN_LAUNCHER_VERSION=\"${{ github.ref_name }}\"/" Makefile
+        make
+
+    - name: Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          assets-*.tar.gz
+          podman-launcher-*
