@@ -83,6 +83,9 @@ func (conf *Config) Run(argv []string) error {
 			return err
 		}
 
+		// the payload has to be unpacked again, and the marker is what says so
+		os.Remove(conf.unpackedMarker())
+
 		argv = []string{argv[0], "info"}
 	}
 

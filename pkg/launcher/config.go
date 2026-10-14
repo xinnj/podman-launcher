@@ -39,29 +39,6 @@ import (
 	"text/template"
 )
 
-var podmanFiles = []string{
-	"bin/crun",
-	"bin/fuse-overlayfs",
-	"bin/fusermount3",
-	"bin/podman",
-	"bin/runc",
-	"bin/slirp4netns",
-	"conf/cni/net.d/87-podman-bridge.conflist",
-	"conf/containers/containers.conf",
-	"conf/containers/policy.json",
-	"conf/containers/registries.conf",
-	"conf/containers/storage.conf",
-	"lib/cni/bridge",
-	"lib/cni/firewall",
-	"lib/cni/host-local",
-	"lib/cni/loopback",
-	"lib/cni/portmap",
-	"lib/cni/tuning",
-	"lib/podman/catatonit",
-	"lib/podman/conmon",
-	"lib/podman/rootlessport",
-}
-
 // Config is the struct holding the current podman-launcher assets and configuration.
 // Be sure to initialize it using NewLauncher() and pass the proper pack payload.
 type Config struct {
@@ -180,6 +157,12 @@ func (conf *Config) setupConfs() error {
 	return nil
 }
 
+// unpackedMarker is the file whose presence says the payload has been unpacked
+// and the configs set up.
+func (conf *Config) unpackedMarker() string {
+	return filepath.Join(conf.targetDir, ".unpacked")
+}
+
 func (conf *Config) prepareFiles() error {
 	// create our unpack dir
 	err := os.MkdirAll(conf.targetDir, 0o755)
@@ -193,30 +176,30 @@ func (conf *Config) prepareFiles() error {
 		return err
 	}
 
-	// we need to detect if we need to unpack our assets.tar.gz
-	unpack := false
-	// we'll check for missing files in our list of files
-	for _, file := range podmanFiles {
-		_, err = os.Stat(filepath.Join(conf.targetDir, file))
-		if err != nil {
-			unpack = true
-
-			break
-		}
-	}
-	// if we indeed have some missing files, let's unpack them
-	if unpack {
-		err = untar(bytes.NewReader(conf.pack), conf.targetDir)
-		if err != nil {
-			return err
-		}
-
-		// setup our custom configs
-		err = conf.setupConfs()
-		if err != nil {
-			return err
-		}
+	// The payload is unpacked once, and this marker is how the next invocation
+	// knows. Checking for a list of files instead - as this used to - unpacks
+	// the payload again on every invocation as soon as that list names a file
+	// the payload does not ship, and this podman-static comes with netavark and
+	// pasta rather than lib/cni and slirp4netns. Unpacking writes over
+	// bin/podman while other invocations are running it, and those fail with
+	// "fork/exec .../bin/podman: text file busy" - a command that never runs,
+	// reported to the caller as nothing at all.
+	// The marker is written only after both steps have succeeded, so an unpack
+	// that was interrupted is done again.
+	if _, err := os.Stat(conf.unpackedMarker()); err == nil {
+		return nil
 	}
 
-	return nil
+	err = untar(bytes.NewReader(conf.pack), conf.targetDir)
+	if err != nil {
+		return err
+	}
+
+	// setup our custom configs
+	err = conf.setupConfs()
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(conf.unpackedMarker(), nil, 0o644)
 }
