@@ -21,6 +21,7 @@ package main
 
 import (
 	_ "embed"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -50,9 +51,21 @@ func main() {
 	conf := launcher.NewLauncher(targetDir, tmpDir, pack)
 
 	err := conf.Run(os.Args)
-	if err != nil {
-		if exiterr, ok := err.(*exec.ExitError); ok {
-			os.Exit(exiterr.ExitCode())
-		}
+	if err == nil {
+		return
 	}
+
+	// A podman that failed reports its own failure, so its exit status is
+	// passed on as it is.
+	if exiterr, ok := err.(*exec.ExitError); ok {
+		os.Exit(exiterr.ExitCode())
+	}
+
+	// Anything else - a directory that cannot be created, a fork the system
+	// refused, a payload that cannot be unpacked - has to be said out loud.
+	// Exiting 0 without a word makes a command that never ran look like one
+	// that ran and had nothing to say, which is a lie the caller cannot tell
+	// from an answer.
+	fmt.Fprintln(os.Stderr, "podman-launcher: "+err.Error())
+	os.Exit(1)
 }
